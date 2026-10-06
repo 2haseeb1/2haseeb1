@@ -1,0 +1,54 @@
+# Smoke flow: the loop that defines the product.
+#
+#   1. capture a task in a sentence with a date in it
+#   2. see it become the Now Card
+#   3. complete it
+#   4. confirm it landed in Done and extended the streak
+#
+# Run with: maestro test .maestro/smoke.yaml
+# Requires a dev build installed on a booted simulator/emulator.
+appId: com.blink.todo
+name: Blink smoke flow
+tags:
+  - smoke
+---
+- launchApp:
+    clearState: true
+
+# Onboarding-free: a fresh install shows the empty Today screen.
+- assertVisible: 'Nothing queued'
+
+# --- capture ------------------------------------------------------------------
+- tapOn:
+    id: 'Add a task'
+- assertVisible: 'NEW TASK'
+
+- tapOn:
+    id: 'Task description'
+- inputText: 'call mom tomorrow at 5pm'
+
+# The parser should have understood both parts of the sentence.
+- assertVisible: 'UNDERSTOOD'
+- assertVisible: 'Tomorrow'
+- assertVisible: '5 PM'
+
+- tapOn:
+    id: 'capture-save'
+
+# --- the now card ------------------------------------------------------------
+- assertVisible: 'THE ONE THING'
+- assertVisible: 'Call mom'
+
+# --- complete it -------------------------------------------------------------
+- tapOn: 'Done'
+- assertVisible: 'That is everything'
+
+# --- done tab ----------------------------------------------------------------
+- tapOn: 'Done, tab, 3 of 3'
+- assertVisible: '1 day streak'
+- assertVisible: 'Call mom'
+
+# --- persistence -------------------------------------------------------------
+- launchApp
+- assertVisible: 'Done, tab, 3 of 3'
+- assertVisible: '1 day streak'

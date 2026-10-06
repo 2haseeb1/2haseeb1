@@ -1,0 +1,55 @@
+# Exercises the natural-language parser through the real UI, so the grammar and
+# the capture screen are verified end to end rather than only in unit tests.
+appId: com.blink.todo
+name: Blink capture parsing
+tags:
+  - parser
+---
+- launchApp:
+    clearState: true
+
+# A date expressed as a weekday.
+- tapOn:
+    id: 'Add a task'
+- tapOn:
+    id: 'Task description'
+- inputText: 'gym friday at 7am'
+- assertVisible: 'Friday'
+- assertVisible: '7 AM'
+- tapOn:
+    id: 'capture-save'
+- assertVisible: 'Gym'
+
+# A recurring task, and the chip that describes it.
+- tapOn:
+    id: 'Add a task'
+- tapOn:
+    id: 'Task description'
+- inputText: 'water plants every 3 days'
+- assertVisible: 'Every 3 days'
+- tapOn:
+    id: 'capture-save'
+
+# A relative time and the "someday" bucket.
+- tapOn:
+    id: 'Add a task'
+- tapOn:
+    id: 'Task description'
+- inputText: 'stretch in 20 minutes'
+- assertVisible: 'In 20 minutes'
+- tapOn:
+    id: 'capture-save'
+
+- tapOn:
+    id: 'Add a task'
+- tapOn:
+    id: 'Task description'
+- inputText: 'learn to sail someday'
+- assertVisible: 'Later'
+- tapOn:
+    id: 'capture-save'
+
+# Someday belongs on the Later tab, not in today's queue.
+- tapOn: 'Later, tab, 2 of 3'
+- assertVisible: 'Learn to sail'
+- assertVisible: 'SOMEDAY'
