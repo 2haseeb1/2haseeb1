@@ -103,7 +103,7 @@ platform features and are no-ops there.
 ## Verify it
 
 ```bash
-npm test                 # 278 tests: pure logic + a render test per screen
+npm test                 # 285 tests: pure logic + a render test per screen
 npm run typecheck        # tsc --noEmit, strict
 npm run lint             # eslint
 ```
@@ -122,6 +122,7 @@ npm run lint             # eslint
 | `features/widget/__tests__/snapshot.test.ts` | the widget's view of the data: headline choice, queue, timeline, serialisability |
 | `features/widget/__tests__/bridge.test.ts` | widget sync can never throw into the app, on any platform |
 | `features/capture/__tests__/share.test.ts` | shared text and links become tasks without corrupting either |
+| `widgets/__tests__/widget-task-handler.test.ts` | the Android handler never registers on a platform that cannot support it |
 
 ### End-to-end
 

@@ -555,7 +555,7 @@ Also cap pending local notifications (~64 on iOS): schedule only the next window
 ## Status
 
 **Type 1 — Blink is built.** See [`../blink/`](../blink/) for the implementation:
-Expo SDK 57 / React Native 0.86 / TypeScript, with 278 passing tests (pure logic plus a
+Expo SDK 57 / React Native 0.86 / TypeScript, with 285 passing tests (pure logic plus a
 render test per screen) and a web build you can preview in a browser.
 
 Deviations from the spec above, and why:
