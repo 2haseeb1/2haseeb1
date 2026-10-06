@@ -118,6 +118,52 @@ In Expo Go the app now degrades honestly instead of crashing: Settings says
 *"Needs a development build — Expo Go cannot run this"* rather than offering a
 permission button that cannot work.
 
+### "Cannot connect to Expo CLI" in the app
+
+This one is a **dev-server networking warning, not an app bug** — and the source
+proves it. In `expo/src/async-require/hmr.ts`:
+
+```js
+client.on('connection-error', (e) => setHMRUnavailableReason(getConnectionError(serverHost, e)));
+
+client.on('update-start', () => { didConnect = true; /* … */ });
+
+// We only want to show a warning if Fast Refresh is on *and* if we ever
+// previously managed to connect successfully.
+if (hmrClient.isEnabled() && didConnect) { … }
+```
+
+The warning is gated on `didConnect`, which is only set after Metro has actually
+sent an update. So the sequence is: **the bundle downloaded fine and Fast Refresh
+connected, then the socket dropped.** The app itself is running — Blink makes zero
+network requests, by design.
+
+What it costs you: Fast Refresh. Saving a file will not hot-reload until the app
+reconnects. Press `r` in the Metro terminal (or reload the app) and the warning goes
+away.
+
+Ranked causes, and the fix for each:
+
+| Cause | Fix |
+|---|---|
+| Metro was stopped or restarted while the app was open | Start it again and press `r`, or reload the app |
+| Phone and PC on different networks (guest Wi-Fi, VLAN, hotspot) | Put both on the same Wi-Fi, or use `--tunnel` |
+| Windows Firewall blocking Node.js on port 8081 | Allow Node.js through on **private** networks |
+| VPN active on the PC or the phone | Disconnect it while developing |
+| The machine's LAN IP changed (DHCP) and the app is holding the old one | Reload the app so it re-reads the manifest |
+| Router has AP/client isolation enabled | Turn it off, or use `--tunnel` |
+| USB-connected device without port forwarding | `adb reverse tcp:8081 tcp:8081` |
+
+Two settings survive all of the above:
+
+```bash
+npx expo start --tunnel          # routes through a tunnel; works on any network
+npx expo start --clear           # when in doubt, drop the Metro cache too
+```
+
+If a scan of the QR code connects but Fast Refresh keeps dropping, `--tunnel` is the
+reliable answer — it removes LAN topology from the equation entirely.
+
 ## Run it
 
 ```bash
