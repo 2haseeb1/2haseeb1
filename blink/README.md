@@ -77,6 +77,47 @@ validated with `expo config --type introspect` — but never rendered. First dev
 add the widget to the home screen and confirm it shows the current task, then complete that
 task in the app and confirm the widget updates.
 
+## Expo Go vs a development build
+
+Blink runs on both, but the three native integrations need a dev build. That is not
+a limitation of this app — Expo Go ships a fixed set of native modules and the
+widget, the share-sheet extension and *remote* push are not among them.
+
+| | Expo Go | Dev build |
+|---|---|---|
+| Capture, lists, recurrence, rollover, streak, themes | ✅ | ✅ |
+| Widget | — | ✅ |
+| Share-sheet target | — | ✅ |
+| Reminders (iOS) | ✅ | ✅ |
+| Reminders (Android) | — | ✅ |
+
+### Two of these libraries throw on *import*, not on use
+
+This is the important detail, and it caused a real crash:
+
+```
+[runtime not ready]: Error: expo-notifications: Android Push notifications …
+  was removed from Expo Go with the release of SDK 53.
+```
+
+The stack trace ended at `src/lib/notifications.ts:14` — the import line.
+`expo-notifications` throws while its own module body evaluates
+(`DevicePushTokenAutoRegistration.fx` → `addPushTokenListener` →
+`warnOfExpoGoPushUsage`, which does `if (Platform.OS === 'android') throw`).
+`react-native-android-widget` does the same via
+`TurboModuleRegistry.getEnforcing('AndroidWidget')`, and `index.js` imported it on
+every platform.
+
+**A throw during import cannot be caught at a call site.** So those two modules are
+never imported eagerly: they are `require`d lazily, behind
+`src/lib/runtime.ts`. `src/lib/__tests__/native-import-boundary.test.ts` walks the
+real static import graph from the entry point and fails if a forbidden package
+reappears in it — verified by reintroducing the bug and watching it fail.
+
+In Expo Go the app now degrades honestly instead of crashing: Settings says
+*"Needs a development build — Expo Go cannot run this"* rather than offering a
+permission button that cannot work.
+
 ## Run it
 
 ```bash
@@ -103,7 +144,7 @@ platform features and are no-ops there.
 ## Verify it
 
 ```bash
-npm test                 # 285 tests: pure logic + a render test per screen
+npm test                 # 303 tests: pure logic + a render test per screen
 npm run typecheck        # tsc --noEmit, strict
 npm run lint             # eslint
 ```
@@ -123,6 +164,8 @@ npm run lint             # eslint
 | `features/widget/__tests__/bridge.test.ts` | widget sync can never throw into the app, on any platform |
 | `features/capture/__tests__/share.test.ts` | shared text and links become tasks without corrupting either |
 | `widgets/__tests__/widget-task-handler.test.ts` | the Android handler never registers on a platform that cannot support it |
+| `lib/__tests__/expo-go.test.ts` | with Expo Go simulated and the native libraries rigged to throw on import, every module still loads |
+| `lib/__tests__/native-import-boundary.test.ts` | no entry-reachable module statically imports a library that throws during import |
 
 ### Dependency notes (what `npm install` prints)
 

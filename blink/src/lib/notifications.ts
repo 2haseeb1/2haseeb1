@@ -11,11 +11,48 @@
  * guarantees the app can pull the user back in even if every reminder was missed.
  */
 
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { hourFromClock, minuteFromClock } from './day';
+import { notificationsAvailable } from './runtime';
 import type { Task } from './types';
+
+type NotificationsModule = typeof import('expo-notifications');
+
+let cached: NotificationsModule | null | undefined;
+
+/**
+ * `expo-notifications` is loaded lazily, and that is load-bearing rather than
+ * stylistic. Importing it throws on Android in Expo Go — not when you call a
+ * function, but while the module itself is being evaluated — and a throw during
+ * import is not catchable from a call site. Importing it lazily means the app
+ * boots everywhere, and only asks for the module where it is known to exist.
+ *
+ * Once resolved the result is memoised, including the `null` case, so a failing
+ * platform does not pay for a failing `require` on every call.
+ */
+function notifications(): NotificationsModule | null {
+  if (cached !== undefined) return cached;
+
+  if (!notificationsAvailable()) {
+    cached = null;
+    return cached;
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    cached = require('expo-notifications') as NotificationsModule;
+  } catch {
+    cached = null;
+  }
+
+  return cached;
+}
+
+/** Exposed for tests: forget the memoised module. */
+export function resetNotificationsCache(): void {
+  cached = undefined;
+}
 
 export const MAX_SCHEDULED = 10;
 const REMINDER_CHANNEL = 'reminders';
@@ -24,25 +61,33 @@ export type PermissionState = 'granted' | 'denied' | 'undetermined';
 
 /** Call once, at app start, before any notification can arrive. */
 export function configureNotificationHandler(): void {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      // `shouldShowAlert` is deprecated; banner/list are the current fields.
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  });
+  const N = notifications();
+  if (!N) return;
+  try {
+    N.setNotificationHandler({
+      handleNotification: async () => ({
+        // `shouldShowAlert` is deprecated; banner/list are the current fields.
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  } catch {
+    // A handler that cannot be installed only affects foreground presentation.
+  }
 }
 
 export async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
+  const N = notifications();
+  if (!N) return;
   try {
-    await Notifications.setNotificationChannelAsync(REMINDER_CHANNEL, {
+    await N.setNotificationChannelAsync(REMINDER_CHANNEL, {
       name: 'Reminders',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: N.AndroidImportance.HIGH,
       vibrationPattern: [0, 120, 80, 120],
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      lockscreenVisibility: N.AndroidNotificationVisibility.PUBLIC,
     });
   } catch {
     // Channel setup is best-effort; reminders still work with default settings.
@@ -51,10 +96,12 @@ export async function ensureAndroidChannel(): Promise<void> {
 
 export async function getPermissionState(): Promise<PermissionState> {
   if (Platform.OS === 'web') return 'denied';
+  const N = notifications();
+  if (!N) return 'denied';
   try {
-    const settings = await Notifications.getPermissionsAsync();
+    const settings = await N.getPermissionsAsync();
     if (settings.granted) return 'granted';
-    if (settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+    if (settings.ios?.status === N.IosAuthorizationStatus.PROVISIONAL) {
       return 'granted';
     }
     return settings.canAskAgain === false ? 'denied' : 'undetermined';
@@ -70,15 +117,17 @@ export async function getPermissionState(): Promise<PermissionState> {
  */
 export async function requestPermission(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
+  const N = notifications();
+  if (!N) return false;
   try {
-    const settings = await Notifications.requestPermissionsAsync({
+    const settings = await N.requestPermissionsAsync({
       ios: {
         allowAlert: true,
         allowBadge: false,
         allowSound: true,
       },
     });
-    return settings.granted || settings.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+    return settings.granted || settings.ios?.status === N.IosAuthorizationStatus.PROVISIONAL;
   } catch {
     return false;
   }
@@ -100,11 +149,14 @@ export interface ReminderSyncInput {
 export async function syncReminders(input: ReminderSyncInput): Promise<number> {
   if (Platform.OS === 'web') return 0;
 
+  const N = notifications();
+  if (!N) return 0;
+
   const permission = await getPermissionState();
   if (permission !== 'granted') return 0;
 
   try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
+    await N.cancelAllScheduledNotificationsAsync();
 
     const upcoming = input.tasks
       .filter(
@@ -115,7 +167,7 @@ export async function syncReminders(input: ReminderSyncInput): Promise<number> {
       .slice(0, MAX_SCHEDULED);
 
     for (const task of upcoming) {
-      await Notifications.scheduleNotificationAsync({
+      await N.scheduleNotificationAsync({
         identifier: `task:${task.id}`,
         content: {
           title: task.title,
@@ -126,7 +178,7 @@ export async function syncReminders(input: ReminderSyncInput): Promise<number> {
           categoryIdentifier: undefined,
         },
         trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          type: N.SchedulableTriggerInputTypes.DATE,
           date: new Date(task.remindAt as number),
           channelId: REMINDER_CHANNEL,
         },
@@ -134,7 +186,7 @@ export async function syncReminders(input: ReminderSyncInput): Promise<number> {
     }
 
     if (input.dailyReview) {
-      await Notifications.scheduleNotificationAsync({
+      await N.scheduleNotificationAsync({
         identifier: 'daily-review',
         content: {
           title: 'What is the one thing?',
@@ -143,7 +195,7 @@ export async function syncReminders(input: ReminderSyncInput): Promise<number> {
           data: { route: '/capture' },
         },
         trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          type: N.SchedulableTriggerInputTypes.DAILY,
           hour: hourFromClock(input.dailyReviewTime),
           minute: minuteFromClock(input.dailyReviewTime),
           channelId: REMINDER_CHANNEL,

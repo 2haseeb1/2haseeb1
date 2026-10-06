@@ -14,6 +14,7 @@ import {
   requestPermission,
   type PermissionState,
 } from '@/lib/notifications';
+import { unavailableReason } from '@/lib/runtime';
 import { THEME_LIST, HIT, radius, spacing } from '@/theme/tokens';
 import { useTheme } from '@/theme/useTheme';
 
@@ -29,6 +30,8 @@ export default function SettingsScreen() {
   const resetAll = useBlinkStore((s) => s.resetAll);
 
   const [permission, setPermission] = useState<PermissionState>('undetermined');
+  // Null when reminders can work here; a human explanation when they cannot.
+  const notificationsReason = unavailableReason('notifications');
 
   useEffect(() => {
     void getPermissionState().then(setPermission);
@@ -205,14 +208,18 @@ export default function SettingsScreen() {
               <View style={styles.rowLabel}>
                 <Text variant="body">Notification access</Text>
                 <Text variant="caption" faint>
-                  {permission === 'granted'
-                    ? 'Allowed'
-                    : permission === 'denied'
-                      ? 'Blocked — enable in system settings'
-                      : 'Not requested yet'}
+                  {notificationsReason ??
+                    (permission === 'granted'
+                      ? 'Allowed'
+                      : permission === 'denied'
+                        ? 'Blocked — enable in system settings'
+                        : 'Not requested yet')}
                 </Text>
               </View>
-              {permission === 'granted' ? (
+              {/* Offering a permission button that cannot work is worse than
+                  saying why it is unavailable — Android in Expo Go throws on
+                  import, so reminders are off there entirely. */}
+              {notificationsReason ? null : permission === 'granted' ? (
                 <Text variant="caption" color={theme.success}>
                   ON
                 </Text>

@@ -22,6 +22,9 @@ const mockRegisterWidgetTaskHandler = jest.fn();
 // receives the spy rather than the real launcher-facing implementation.
 jest.mock('react-native-android-widget', () => ({
   registerWidgetTaskHandler: (handler: unknown) => mockRegisterWidgetTaskHandler(handler),
+  // The handler renders through these, so they need to exist for the render path.
+  FlexWidget: () => null,
+  TextWidget: () => null,
 }));
 
 beforeEach(() => {
@@ -30,28 +33,41 @@ beforeEach(() => {
 
 describe('shouldRegisterTaskHandler', () => {
   it('is true on Android only', () => {
-    expect(shouldRegisterTaskHandler('android')).toBe(true);
-    expect(shouldRegisterTaskHandler('ios')).toBe(false);
+    expect(shouldRegisterTaskHandler('android', true)).toBe(true);
+    expect(shouldRegisterTaskHandler('ios', true)).toBe(false);
     // react-native-web has no AppRegistry.registerHeadlessTask.
-    expect(shouldRegisterTaskHandler('web')).toBe(false);
+    expect(shouldRegisterTaskHandler('web', true)).toBe(false);
+  });
+
+  it('is false where the widget native module does not exist', () => {
+    // Expo Go, or any build without the widget library linked in. Requiring
+    // react-native-android-widget there throws, and it throws during import.
+    expect(shouldRegisterTaskHandler('android', false)).toBe(false);
+    expect(shouldRegisterTaskHandler('ios', false)).toBe(false);
   });
 });
 
 describe('registerTaskHandlerIfSupported', () => {
   it('does nothing on web', () => {
-    expect(() => registerTaskHandlerIfSupported('web')).not.toThrow();
+    expect(() => registerTaskHandlerIfSupported('web', true)).not.toThrow();
     expect(mockRegisterWidgetTaskHandler).not.toHaveBeenCalled();
   });
 
   it('does nothing on iOS', () => {
-    expect(() => registerTaskHandlerIfSupported('ios')).not.toThrow();
+    expect(() => registerTaskHandlerIfSupported('ios', true)).not.toThrow();
     expect(mockRegisterWidgetTaskHandler).not.toHaveBeenCalled();
   });
 
   it('registers the handler on Android', () => {
-    registerTaskHandlerIfSupported('android');
+    registerTaskHandlerIfSupported('android', true);
     expect(mockRegisterWidgetTaskHandler).toHaveBeenCalledTimes(1);
     expect(mockRegisterWidgetTaskHandler).toHaveBeenCalledWith(handleWidgetTask);
+  });
+
+  it('does nothing on Android when the widget module is unavailable', () => {
+    // The Expo Go case: registering would require the library, which throws.
+    expect(() => registerTaskHandlerIfSupported('android', false)).not.toThrow();
+    expect(mockRegisterWidgetTaskHandler).not.toHaveBeenCalled();
   });
 
   it('does not propagate a registration failure into app startup', () => {
@@ -59,7 +75,7 @@ describe('registerTaskHandlerIfSupported', () => {
     mockRegisterWidgetTaskHandler.mockImplementationOnce(() => {
       throw new Error('AppRegistry.registerHeadlessTask is not a function');
     });
-    expect(() => registerTaskHandlerIfSupported('android')).not.toThrow();
+    expect(() => registerTaskHandlerIfSupported('android', true)).not.toThrow();
   });
 });
 

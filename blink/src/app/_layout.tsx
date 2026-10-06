@@ -7,13 +7,14 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { ShareIntentProvider } from 'expo-share-intent';
 
 import { SharedIntentRedirect } from '@/features/capture/SharedIntentRedirect';
 import { startWidgetSync } from '@/features/widget/bridge';
+import { shareIntentAvailable } from '@/lib/runtime';
 import { useBlinkStore, useHydrated, useSettings, useTasks } from '@/features/tasks/store';
 import { setHapticsEnabled } from '@/lib/haptics';
 import {
@@ -128,10 +129,11 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 
-  // The share-intent native module does not exist on web, and the provider
-  // subscribes to it on mount. Rendering the tree without it there keeps the web
-  // build working; nothing on web can be shared into anyway.
-  if (Platform.OS === 'web') return tree;
+  // Mount the share-intent provider only where a share can actually arrive.
+  // On web there is nothing to share into, and in Expo Go the native module is
+  // absent — the library tolerates that, but mounting a provider that can never
+  // receive anything is just noise.
+  if (!shareIntentAvailable()) return tree;
 
   return (
     <ShareIntentProvider options={{ scheme: 'blink' }}>

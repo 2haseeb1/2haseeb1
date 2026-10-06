@@ -19,6 +19,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 
+import { widgetsAvailable } from '@/lib/runtime';
 import { DEFAULT_SETTINGS, type Settings, type Task } from '@/lib/types';
 import { STORAGE_KEY, useBlinkStore } from '@/features/tasks/store';
 
@@ -99,8 +100,17 @@ async function pushToAndroid(tasks: Task[], settings: Settings): Promise<void> {
   });
 }
 
-/** Pushes the current tasks to whichever widget platform this is, if any. */
+/**
+ * Pushes the current tasks to whichever widget platform this is, if any.
+ *
+ * `widgetsAvailable()` is the first check because both widget libraries throw
+ * during import in a build without their native modules — Expo Go again. The
+ * `try`/`catch` below still stands, so an unforeseen launcher or OS failure can
+ * only ever cost a stale widget, never a broken app.
+ */
 export async function syncWidgetsNow(tasks: Task[], settings: Settings): Promise<void> {
+  if (!widgetsAvailable()) return;
+
   try {
     if (Platform.OS === 'ios') {
       await pushToIos(tasks, settings);
@@ -121,7 +131,7 @@ export async function syncWidgetsNow(tasks: Task[], settings: Settings): Promise
  * hot reloads do not stack listeners.
  */
 export function startWidgetSync(): () => void {
-  if (Platform.OS === 'web') return () => undefined;
+  if (!widgetsAvailable()) return () => undefined;
 
   let timer: ReturnType<typeof setTimeout> | null = null;
 
