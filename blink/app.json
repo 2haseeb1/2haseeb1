@@ -43,6 +43,60 @@
             "backgroundColor": "#0A0D14"
           }
         }
+      ],
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.com.blink.todo",
+          "enableAndroid": false,
+          "widgets": [
+            {
+              "name": "BlinkNow",
+              "displayName": "Blink",
+              "description": "The one thing, right on your home screen.",
+              "supportedFamilies": [
+                "systemSmall",
+                "systemMedium",
+                "systemLarge",
+                "accessoryCircular",
+                "accessoryRectangular"
+              ],
+              "contentMarginsDisabled": false,
+              "android": null
+            }
+          ]
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "BlinkNow",
+              "label": "Blink",
+              "description": "The one thing, right on your home screen.",
+              "minWidth": "180dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 3,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal|vertical"
+            }
+          ]
+        }
+      ],
+      [
+        "expo-share-intent",
+        {
+          "iosShareExtensionName": "BlinkShare",
+          "iosAppGroupIdentifier": "group.com.blink.todo",
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true
+          },
+          "androidIntentFilters": [
+            "text/*"
+          ]
+        }
       ]
     ],
     "experiments": {

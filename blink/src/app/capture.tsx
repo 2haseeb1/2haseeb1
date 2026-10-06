@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +15,8 @@ import { Chip } from '@/components/Chip';
 import { Screen } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { CloseIcon } from '@/components/icons';
+import { SharedDraftApplier } from '@/features/capture/SharedDraftApplier';
+import type { SharedDraft } from '@/features/capture/useSharedDraft';
 import { useBlinkStore } from '@/features/tasks/store';
 import { addDays, atClock, startOfDay } from '@/lib/day';
 import { haptics } from '@/lib/haptics';
@@ -45,6 +47,21 @@ export default function CaptureScreen() {
   const [dateOverride, setDateOverride] = useState<number | null | undefined>(undefined);
   const [repeatOverride, setRepeatOverride] = useState<Recurrence | null | undefined>(undefined);
 
+  // Set when this capture started life as a share from another app.
+  const [shared, setShared] = useState<SharedDraft | null>(null);
+
+  /**
+   * A share prefills the sheet rather than saving straight away: the parser is
+   * good, not infallible, and Blink never records something the user has not
+   * seen. It is still one tap to accept.
+   */
+  const applySharedDraft = useCallback((draft: SharedDraft) => {
+    setShared(draft);
+    setText(draft.input.title);
+    setDateOverride(draft.input.dueAt ?? null);
+    setRepeatOverride(draft.input.recurrence ?? null);
+  }, []);
+
   const parsed = useMemo(() => parseTaskInput(text, now), [text, now]);
 
   const dueAt = dateOverride !== undefined ? dateOverride : parsed.dueAt;
@@ -69,7 +86,14 @@ export default function CaptureScreen() {
     if (!finalTitle) return;
 
     const bucket: Bucket = parsed.bucket ?? bucketForDue(dueAt, now, rolloverHour);
-    addTask({ title: finalTitle, dueAt, recurrence: recurrence ?? null, bucket });
+    addTask({
+      title: finalTitle,
+      dueAt,
+      recurrence: recurrence ?? null,
+      bucket,
+      // A share's body is worth keeping; a typed title's is not.
+      notes: shared?.input.notes,
+    });
     haptics.complete();
     router.back();
   };
@@ -82,9 +106,13 @@ export default function CaptureScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.flex}
       >
+        {Platform.OS === 'web' ? null : (
+          <SharedDraftApplier now={now} onDraft={applySharedDraft} />
+        )}
+
         <View style={styles.header}>
           <Text variant="caption" faint>
-            NEW TASK
+            {shared ? 'SHARED TO BLINK' : 'NEW TASK'}
           </Text>
           <Pressable
             accessibilityRole="button"

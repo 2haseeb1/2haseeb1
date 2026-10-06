@@ -7,9 +7,13 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { ShareIntentProvider } from 'expo-share-intent';
+
+import { SharedIntentRedirect } from '@/features/capture/SharedIntentRedirect';
+import { startWidgetSync } from '@/features/widget/bridge';
 import { useBlinkStore, useHydrated, useSettings, useTasks } from '@/features/tasks/store';
 import { setHapticsEnabled } from '@/lib/haptics';
 import {
@@ -62,6 +66,10 @@ export default function RootLayout() {
     setHapticsEnabled(settings.haptics);
   }, [settings.haptics]);
 
+  // Keep the home-screen widgets in step with the store. The bridge owns the
+  // platform split and swallows its own errors, so this is safe everywhere.
+  useEffect(() => startWidgetSync(), []);
+
   // Re-arm the OS reminder window (capped, soonest-first) after edits settle.
   useEffect(() => {
     if (!hydrated) return;
@@ -97,7 +105,7 @@ export default function RootLayout() {
     },
   };
 
-  return (
+  const tree = (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider value={navigationTheme}>
         <StatusBar style={theme.isDark ? 'light' : 'dark'} />
@@ -118,5 +126,17 @@ export default function RootLayout() {
         </Stack>
       </ThemeProvider>
     </GestureHandlerRootView>
+  );
+
+  // The share-intent native module does not exist on web, and the provider
+  // subscribes to it on mount. Rendering the tree without it there keeps the web
+  // build working; nothing on web can be shared into anyway.
+  if (Platform.OS === 'web') return tree;
+
+  return (
+    <ShareIntentProvider options={{ scheme: 'blink' }}>
+      <SharedIntentRedirect />
+      {tree}
+    </ShareIntentProvider>
   );
 }

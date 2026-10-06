@@ -209,7 +209,15 @@ export function atClock(dayTs: number, hour: number, minute = 0): number {
   return d.getTime();
 }
 
+/** Matches a string that begins with a URL scheme, e.g. `https://…` or `mailto:`. */
+const URL_SCHEME = /^[a-z][a-z0-9+.-]*:\/\//i;
+
 export function titleCaseFirst(input: string): string {
   if (!input) return input;
-  return input.charAt(0).toUpperCase() + input.slice(1);
+  // Capitalising a link breaks it: `Https://example.com` is not a resolvable
+  // scheme. Shared links reach the parser as task titles, so this matters.
+  if (URL_SCHEME.test(input)) return input;
+  const first = input.charAt(0);
+  if (first === first.toUpperCase()) return input;
+  return first.toUpperCase() + input.slice(1);
 }

@@ -555,7 +555,7 @@ Also cap pending local notifications (~64 on iOS): schedule only the next window
 ## Status
 
 **Type 1 — Blink is built.** See [`../blink/`](../blink/) for the implementation:
-Expo SDK 57 / React Native 0.86 / TypeScript, with 209 passing tests (pure logic plus a
+Expo SDK 57 / React Native 0.86 / TypeScript, with 278 passing tests (pure logic plus a
 render test per screen) and a web build you can preview in a browser.
 
 Deviations from the spec above, and why:
@@ -564,10 +564,19 @@ Deviations from the spec above, and why:
 |---|---|---|
 | op-sqlite + Drizzle | zustand + AsyncStorage | A local-only dataset in the hundreds of tasks does not need a query engine; this removes the native build dependency and keeps the whole store serialisable for export. Swapping in op-sqlite later is contained to `features/tasks/store.ts`. |
 | FlashList | FlatList | FlashList's benefit starts in the thousands of rows; FlatList keeps the dependency list smaller. Revisit if someone tracks 1k+ tasks. |
-| expo-speech-recognition voice capture | not built | Deferred with the widget work — see "Known gaps" in the app README. |
-| Home-screen widget | not built | Needs native code beyond Expo's managed config; it is the highest-value next feature. |
+| expo-speech-recognition voice capture | not built | The last input method still missing. It feeds the same parser pipeline as typing and sharing, so it is a contained addition — see "Known gaps" in the app README. |
+| Home-screen widget | **built** | iOS via `expo-widgets` (SwiftUI, served from the shared app group), Android via `react-native-android-widget`. Written and bundled here, but **not run on a device** — see the caveat below. |
+| Share-sheet target | **built** | `expo-share-intent`, sharing the widget's app group. Text or a link shared from another app opens the capture sheet prefilled; nothing is saved until the user confirms. |
 
 What the implementation added beyond the spec: a 28-day activity grid, undo-friendly
 `reopen` on every completed task, a focus mode with an elapsed timer, export-as-backup
 with a fully tested importer, and a storage layer that degrades to memory instead of
 crashing when `localStorage` is unavailable.
+
+> **Widget and share-sheet caveat.** Both are native extension features. This repository
+> contains the layouts, the config-plugin wiring and the sync bridge, and they type-check,
+> bundle for both platforms and have their config validated with `expo config --type introspect`
+> (which confirms the two iOS app extensions and the Android `AppWidgetProvider` are
+> generated, all sharing `group.com.blink.todo`). They have **not been run on a device or
+> simulator**, because that needs Xcode and Android Studio. Treat the first device build as
+> the real test — see "Native features" in the app README for what to check.

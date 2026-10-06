@@ -39,6 +39,43 @@ the local-first, single-player, speed-is-the-feature todo app.
 - **Reminders** with a capped, soonest-first scheduling window (iOS allows ~64 pending
   local notifications; one-per-task is the classic way todo apps silently stop reminding).
 - **Four themes**, haptics, export-as-backup, and a full test suite.
+- **A home-screen widget.** One thing, the streak behind it, and a timeline that
+  refreshes itself at the day boundary so the label is never stale. Sizes from
+  `systemSmall` up to lock-screen `accessoryCircular`.
+- **A share-sheet target.** Share a sentence or a link from any app and Blink opens
+  with the capture sheet already filled in — title, date and repeat parsed from the
+  share. It is still one tap to save, because the parser is good, not infallible.
+
+## Native features (widget + share sheet)
+
+These are extension targets, not JavaScript: they need a **dev build**, not Expo Go.
+
+| | iOS | Android |
+|---|---|---|
+| Widget | `expo-widgets` — SwiftUI layout, `systemSmall`→`systemLarge` + lock screen | `react-native-android-widget` — a React component rendered to a launcher view |
+| Share sheet | `expo-share-intent` extension | `intent-filter` on the main activity (`text/*`) |
+| Shared storage | app group `group.com.blink.todo` | n/a — the widget reads the app's own store |
+
+The pieces that live in this repo:
+
+- `src/widgets/BlinkWidget.tsx` — the iOS layout. Its `'widget'` directive is compiled
+  into a **source string** by `babel-preset-expo`, evaluated later in the widget's own
+  JS runtime. So the layout may only use bare globals and may not reference anything
+  from module scope; `src/features/widget/__tests__/widget-layout.test.ts` asserts the
+  extracted string is valid JavaScript and resolves nothing outside the widget runtime.
+- `src/widgets/blink-widget-ios.ts`, `src/widgets/BlinkAndroidWidget.tsx` —
+  the two widget instances. Both are named `BlinkNow`, matching `app.json`.
+- `src/widgets/widget-task-handler.tsx` — Android's headless entry point, imported from
+  `index.js` ahead of `expo-router/entry`. Android can launch the JS bundle with no
+  activity mounted, so this reads the persisted store from storage.
+- `src/features/widget/bridge.ts` — the only module that touches either widget library.
+  It coalesces updates, swallows every native failure, and no-ops on web.
+
+**Not verified on a device.** There is no Xcode or Android Studio in the environment this
+was built in, so these were type-checked, bundled for both platforms, and their config was
+validated with `expo config --type introspect` — but never rendered. First device build:
+add the widget to the home screen and confirm it shows the current task, then complete that
+task in the app and confirm the widget updates.
 
 ## Run it
 
@@ -66,7 +103,7 @@ platform features and are no-ops there.
 ## Verify it
 
 ```bash
-npm test                 # 209 tests: pure logic + a render test per screen
+npm test                 # 278 tests: pure logic + a render test per screen
 npm run typecheck        # tsc --noEmit, strict
 npm run lint             # eslint
 ```
@@ -81,6 +118,10 @@ npm run lint             # eslint
 | `lib/__tests__/export.test.ts` | backup round-trip, and refusing to trust a malformed file |
 | `features/tasks/__tests__/store.test.ts` | store rules: recurrence spawning, snooze, reordering |
 | `features/tasks/__tests__/screens.test.tsx` | every screen renders; the interactions that define the product |
+| `features/widget/__tests__/widget-layout.test.ts` | the widget layout compiles to valid JS that resolves nothing outside the widget runtime |
+| `features/widget/__tests__/snapshot.test.ts` | the widget's view of the data: headline choice, queue, timeline, serialisability |
+| `features/widget/__tests__/bridge.test.ts` | widget sync can never throw into the app, on any platform |
+| `features/capture/__tests__/share.test.ts` | shared text and links become tasks without corrupting either |
 
 ### End-to-end
 
@@ -104,6 +145,15 @@ src/
   features/tasks/
     store.ts              zustand + AsyncStorage persistence — the single source of truth
     selectors.ts          pure derived views (Now Card, queues, streaks, progress)
+  features/widget/
+    snapshot.ts           pure: the widget's props + the timeline it refreshes on
+    bridge.tsx            the only module that talks to either widget library
+  features/capture/
+    share.ts              pure: a shared payload -> a task input
+  widgets/                native widget targets (see "Native features")
+    BlinkWidget.tsx       iOS layout, compiled into a string at build time
+    BlinkAndroidWidget.tsx  Android layout, an ordinary React component
+    widget-task-handler.tsx Android's headless entry point
   lib/                    pure logic, no JSX, no store access
     parse.ts              the natural-language capture grammar
     day.ts                calendar maths, formatters, streak computation
@@ -137,14 +187,14 @@ resets, what happens to a missed recurring chore — is a pure function with tes
 
 ## Known gaps (deliberately not shipped in v1)
 
-- **Home-screen widget** and **share-sheet target** — both need native code beyond
-  Expo's managed config. This is the next feature that matters most for the "under two
-  seconds from anywhere" promise.
-- **Voice capture** — `expo-speech-recognition` feeds the same parser pipeline.
+- **Voice capture** — `expo-speech-recognition` feeds the same parser pipeline. The last
+  input method still missing.
+- **Widget quick-add** — the widget opens the capture sheet rather than accepting text
+  inline. Inline entry needs a WidgetKit `AppIntent` text field, which is a bigger piece
+  of native work than the read-only widget.
 - **Import UI** — `lib/export.ts` parses an import and is fully tested, but the Settings
   screen only exposes export today.
 - **Sync** — out of scope by design. Export is the backup story.
-- iOS/Android home-screen *quick add* also requires the widget extension work above.
 
 ## License
 
