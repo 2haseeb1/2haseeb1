@@ -11,6 +11,8 @@
  * `index.js` (the app entry, ahead of `expo-router/entry`) guarantees that.
  */
 
+import { Platform } from 'react-native';
+
 import { registerWidgetTaskHandler } from 'react-native-android-widget';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,7 +42,13 @@ async function loadState(): Promise<{ tasks: Task[]; settings: Settings }> {
   }
 }
 
-registerWidgetTaskHandler(async ({ widgetAction, renderWidget }) => {
+async function handleWidgetTask({
+  widgetAction,
+  renderWidget,
+}: {
+  widgetAction: string;
+  renderWidget: (element: React.JSX.Element) => void;
+}) {
   if (widgetAction === 'WIDGET_DELETED') {
     // Nothing to draw and nothing to clean up — the widget is gone.
     return;
@@ -56,4 +64,31 @@ registerWidgetTaskHandler(async ({ widgetAction, renderWidget }) => {
   }
 
   renderWidget(<BlinkAndroidWidget snapshot={snapshot} />);
-});
+}
+
+/**
+ * Registration is Android-only, and that guard is load-bearing.
+ *
+ * `registerWidgetTaskHandler` calls `AppRegistry.registerHeadlessTask`, which
+ * does not exist on iOS or on `react-native-web`. This module is imported by
+ * `index.js` on every platform, so calling it unconditionally would throw at
+ * startup and take the whole app down on web — a failure that bundling cannot
+ * catch, because the file still compiles perfectly.
+ */
+export function shouldRegisterTaskHandler(os: string): boolean {
+  return os === 'android';
+}
+
+/** Registers the handler where the OS supports it, and nowhere else. */
+export function registerTaskHandlerIfSupported(os: string = Platform.OS): void {
+  if (!shouldRegisterTaskHandler(os)) return;
+  try {
+    registerWidgetTaskHandler(handleWidgetTask);
+  } catch {
+    // A widget that cannot register must not stop the app from starting.
+  }
+}
+
+registerTaskHandlerIfSupported();
+
+export { handleWidgetTask };
