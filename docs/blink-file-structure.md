@@ -1,6 +1,6 @@
 # Blink — file & folder structure
 
-An annotated map of the app. 79 tracked files: **58 under `src/`** (6,255 lines of
+An annotated map of the app. 80 tracked files: **58 under `src/`** (6,255 lines of
 production code + 2,424 lines of tests across 13 suites).
 
 ```
