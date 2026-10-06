@@ -124,6 +124,36 @@ npm run lint             # eslint
 | `features/capture/__tests__/share.test.ts` | shared text and links become tasks without corrupting either |
 | `widgets/__tests__/widget-task-handler.test.ts` | the Android handler never registers on a platform that cannot support it |
 
+### Dependency notes (what `npm install` prints)
+
+`npm install` reports deprecation warnings and an audit count. Both were checked;
+here is the verdict so nobody has to re-derive it.
+
+**`npm audit` — 68 advisories, all dev/BUILD tooling, none in the app.** The five
+distinct advisories arrive through `jest`, `jest-expo`, `@expo/cli` and
+`@expo/config-plugins` (used at prebuild time), not through anything this app imports:
+
+| Advisory | Reaches the app via |
+|---|---|
+| `node-forge` RSA signature check | `expo` → `@expo/cli` — the dev server / code signing |
+| `braces` stack exhaustion | `jest` → `@jest/core` → `micromatch` |
+| `sprintf-js` DoS | `jest-expo` → `babel-jest` → `istanbul-lib` (coverage) |
+| `uuid` buffer bounds | `expo-share-intent` → `@expo/config-plugins` → `xcode` (prebuild) |
+| `decode-uri-component` DoS | `expo-router` → `query-string` |
+
+Verified rather than assumed: grepping the shipped Android (`.hbc`) and web bundles for
+every one of these package names returns **zero** hits, while app-code controls
+(`THE ONE THING`, `blink-store`, `BlinkNow`) return hits — so the search is meaningful.
+
+**Do not run `npm audit fix --force`.** For an Expo app the transitive chain *is* the
+SDK version alignment, and forcing fixes breaks it for no security gain. `npm audit fix`
+proposes no changes, which is the correct outcome.
+
+**`unrs-resolver` postinstall blocked** — that is npm's install-script gating, not a
+project error. It is pulled in by `eslint-config-expo` via
+`eslint-import-resolver-typescript`, and the script only verifies the platform binary
+that npm already installed as an optional dependency. Nothing to approve.
+
 ### End-to-end
 
 Maestro flows live in `.maestro/`:
